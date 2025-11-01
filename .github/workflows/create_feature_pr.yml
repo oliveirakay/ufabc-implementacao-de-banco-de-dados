@@ -1,0 +1,66 @@
+name: Create Feature PR to Main on Push
+
+# Gatilho: Roda em CADA PUSH
+# para branches que começam com 'feature/'
+on:
+  push:
+    branches:
+      - 'feature/**'
+
+jobs:
+  create-pr:
+    runs-on: ubuntu-latest
+    
+    # Permissões necessárias para o GITHUB_TOKEN
+    permissions:
+      pull-requests: write # Para criar o Pull Request
+      contents: read       # Para o CLI ler o repositório
+
+    steps:
+      # Etapa 1: Extrair o nome da branch limpo (ex: feature/login)
+      - name: Get branch name
+        id: get_branch
+        run: echo "branch_name=${GITHUB_REF#refs/heads/}" >> $GITHUB_OUTPUT
+
+      # Etapa 2: Criar PR (se não existir) usando GitHub CLI
+      - name: Check for existing PR and create if not exists
+        env:
+          # Token injetado automaticamente pelo GitHub Actions
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Nome do repositório (ex: usuario/meu-repo)
+          GH_REPO: ${{ github.repository }}
+          # Pessoa que fez o push
+          PR_AUTHOR: ${{ github.actor }}
+        run: |
+          # Pega o nome da branch da etapa anterior
+          BRANCH_NAME="${{ steps.get_branch.outputs.branch_name }}"
+          echo "Verificando PR para a branch: $BRANCH_NAME"
+
+          # 1. Usa o GitHub CLI para verificar se já existe um PR aberto
+          #    da nossa branch (head) para a 'main' (base)
+          EXISTING_PR_NUMBER=$(gh pr list --base main --head $BRANCH_NAME --json number --jq '.[0].number')
+          
+          # 2. Verifica se o resultado é 'null' (nenhum PR encontrado)
+          if [ "$EXISTING_PR_NUMBER" != "null" ]; then
+            echo "Um PR (nº $EXISTING_PR_NUMBER) já existe de $BRANCH_NAME para main."
+            echo "Nenhuma ação necessária."
+          else
+            # 3. Se não existir, cria um novo PR com todos os recursos
+            echo "Nenhum PR encontrado. Criando um novo..."
+            
+            # Tenta criar um título mais amigável
+            # Transforma 'feature/nome-da-feature' em 'Feature: Nome da feature'
+            PR_TITLE="Feature: $(echo $BRANCH_NAME | sed -e 's/feature\///g' -e 's/-/ /g' -e 's/\b\(.\)/\u\1/g')"
+            PR_BODY="PR automático criado a partir do push para \`$BRANCH_NAME\`."
+            
+            # Comando 'gh pr create' com os recursos extras
+            gh pr create \
+              --base "main" \
+              --head "$BRANCH_NAME" \
+              --title "$PR_TITLE" \
+              --body "$PR_BODY" \
+              --label "automated-pr,feature" \
+              --assignee "$PR_AUTHOR" \
+              --reviewer "$PR_AUTHOR" \
+            || echo "Não foi possível criar o PR. (Provavelmente não há commits novos em relação à 'main')"
+          fi
