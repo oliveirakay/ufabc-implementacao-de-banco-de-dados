@@ -209,6 +209,9 @@ INSERT INTO contas (id, saldo) VALUES
 > 4.  **Continuar Transação B:** Voltar para a Transação B e executar o comando `INSERT` que calcula a soma dos saldos.
 > 5.  **Commit da Transação B:** Finalizar e salvar as alterações da Transação B.
 
+> **OBS** Esse repo é para registro das atividades acadêmicas, então deixei aqui todas as anotações feitas ao longo dos dias, desde a execução do fluxo do pdf até o resultado final que consegui entender a diferença entre os níveis de isolamento.
+
+
 
 ### Nota de estudo.
 
@@ -435,4 +438,84 @@ Uma forma simples de contornar a situação é refazer a transação.
 ![alt text](imgs/image-48.png)
 
 ![alt text](imgs/image-49.png)
+
+## READ COMMITTED com fluxo refatorado:
+
+## Transação A até o sleeping - (tirei o sleep para agilizar o processo)
+
+![alt text](image.png)
+
+### Transação B até o update do saldo com id = 2
+- Aqui a gente percebe que TB não vê a alteração feita por TA - que ainda não commitou, pois o saldo de id = 1 ainda é 100. 
+![alt text](image-1.png)
+
+### Commit de TA
+![alt text](image-2.png)
+
+### Continuando TB com o insert da soma dos saldos
+![alt text](image-3.png)
+
+### Tabela contas após o commit de TB
+
+![alt text](image-4.png)
+
+O que aconteceu: A transação A foi commitada antes do insert da transação B, então quando B fez o select para somar os saldos, ela já viu o saldo atualizado de A, evitando o conflito que gerou o erro no nível de isolamento SERIALIZABLE. 
+
+## REPEATABLE READ com fluxo refatorado:
+
+### Transação A até o sleeping - (tirei o sleep para agilizar o processo)
+
+![alt text](image-11.png)
+
+### Transação B até o update do saldo com id = 2
+
+![alt text](image-12.png)
+
+### Commit de TA
+
+![alt text](image-13.png)
+
+### Continuando TB com o insert da soma dos saldos
+
+![alt text](image-14.png)
+
+### Tabela contas após o commit de TB
+
+![alt text](image-15.png)
+
+O que aconteceu: A transação A foi commitada antes do insert da transação B MAS, diferente do READ COMMITTED, o REPEATABLE READ garante que dentro da transação B as leituras serão do mesmo snapshot do início, por isso o resultado de 150 mesmo depois do commit de TA.
+
+## SERIALIZABLE com fluxo refatorado:
+
+### Transação A até o sleeping - (tirei o sleep para agilizar o processo)
+
+![alt text](image-16.png)
+
+### Transação B até o update do saldo com id = 2
+
+![alt text](image-17.png)
+
+### Commit de TA
+
+![alt text](image-18.png)
+
+### Continuando TB com o insert da soma dos saldos
+
+- Aqui deu o erro similar ao primeiro teste que fiz, pois o commit de TA deixou os dados de TB desatualizados e o MVCC não permitiu o commit de um snapshot antigo.
+
+![alt text](image-19.png)
+
+### Tabela contas após o commit de TB - que deu errado.
+
+![alt text](image-20.png)
+
+O que aconteceu: A transação A foi commitada antes do insert da transação B, mas como o nível de isolamento SERIALIZABLE exige que as transações sejam completamente isoladas umas das outras, o commit de TA invalidou o snapshot usado por TB, resultando em um erro ao tentar continuar a transação B - mesma explicação de antes.
+
+Com isso foram responsdidas as questões a e b.
+
+Para Q2c: 
+
+Unica maneira acaba sendo refazer a transação B após o commit de A, ou seja, o fluxo que já foi testado e deu certo no READ COMMITTED e REPEATABLE READ.
+
+Dúvida: Devo considerar o erro de incosistência do repeatable read como um erro a ser tratado na questão 2b? Se sim, o for update seria uma opção para evitar esse problema fazendo lock em ambas as tranhsações?
 
