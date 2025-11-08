@@ -509,13 +509,48 @@ O que aconteceu: A transação A foi commitada antes do insert da transação B 
 
 ![alt text](image-20.png)
 
-O que aconteceu: A transação A foi commitada antes do insert da transação B, mas como o nível de isolamento SERIALIZABLE exige que as transações sejam completamente isoladas umas das outras, o commit de TA invalidou o snapshot usado por TB, resultando em um erro ao tentar continuar a transação B - mesma explicação de antes.
+O que aconteceu: A transação A foi commitada antes do insert da transação B, mas como o nível de isolamento SERIALIZABLE exige que as transações sejam completamente isoladas umas das outras o commit de TA invalidou o snapshot usado por TB resultando em um erro ao tentar continuar a transação B - mesma explicação de antes.
 
-Com isso foram responsdidas as questões a e b.
+Com isso foram responsdidas as questões a e b da questão 2.
 
 Para Q2c: 
+- 7.11.25
 
 Unica maneira acaba sendo refazer a transação B após o commit de A, ou seja, o fluxo que já foi testado e deu certo no READ COMMITTED e REPEATABLE READ.
 
-Dúvida: Devo considerar o erro de incosistência do repeatable read como um erro a ser tratado na questão 2b? Se sim, o for update seria uma opção para evitar esse problema fazendo lock em ambas as tranhsações?
+Uma outra forma seria usando o for update sem o level de isolation SERIALIZABLE para ambas as transacoes, assim a transacao B ficaria esperando
 
+## Transação A com for update
+
+![alt text](image-24.png)
+
+## Transação B com for update
+
+- A transação fica esperando a outra acontecer, pq o recurso está lockado com a TA.
+
+![alt text](image-25.png)
+
+## Commit transação A
+
+![alt text](image-26.png)
+
+## Contas logo após commit de TA
+
+![alt text](image-27.png)
+
+## Transação B após commit de TA 
+- Aqui eu não rodei nada, ele saiu da espera para essa mensagem de que o recurso teve o update.
+
+![alt text](image-28.png)
+
+- Commit de B 
+
+![alt text](image-29.png)
+
+## Contas após o commit de B
+
+![alt text](image-30.png)
+
+## Conclusão para Q2.c
+
+- Essa seria uma alternativa para não precisar fazer a retentativa da transação, que nesse caso ficaria aguardando o recurso ser liberado e tem um comportamento com resultado final equivalente a transação seriais.
