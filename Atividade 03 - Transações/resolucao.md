@@ -69,6 +69,16 @@ Q1b. (2,5) Apresente um escalonamento possível em que T1 e T2 são executadas c
 | 7 | | S2 = B + C | S2 = 100 + 100 = 200 |
 | 8 | | W2(A, S2) | A é atualizado para 200 |
 
+- Para considerar um plano não seriável o resultado final precisa ser distinto dos possíveis planos seriáveis, ou seja, nesse caso S1 e S2.
+
+ Plano | A | B | C |
+|:--- | :--- | :--- | :--- |
+| Inicial | 100 | 100 | 100 |
+| Plano S1 (T1 -> T2) | 300 | 100 | 200 |
+| Plano S2 (T2 -> T1) | 200 | 100 | 300 |
+| Plano K (Não Seriável)| 200 | 100 | 200 |
+
+
 ### Plano Ks - Há concorrência e é seriável. 
 | Tempo | T1 | T2 | Efeito |
 | :--- | :--- | :--- | :--- |
@@ -81,16 +91,8 @@ Q1b. (2,5) Apresente um escalonamento possível em que T1 e T2 são executadas c
 | 7 | | S2 = B + C | S2 = 100 + 100 = 200 |
 | 8 | | W2(A, S2) | A é atualizado para 200 |
 
-| Plano | A | B | C |
-|:--- | :--- | :--- | :--- |
-| Inicial | 100 | 100 | 100 |
-| Plano S1 (T1 -> T2) | 300 | 100 | 200 |
-| Plano S2 (T2 -> T1) | 200 | 100 | 300 |
-| Plano K (Não Seriável)| 200 | 100 | 200 |
+- Para considerar um plano seriável o resultado final precisa ser igual a um dos possíveis planos seriáveis, ou seja, nesse caso S1 e S2.
 
-### Valor final das variáveis para cada aplicação de plano.
-
-- Para considerar um plano não seriável o resultado final precisa ser distinto dos possíveis planos seriáveis, ou seja, nesse caso S1 e S1.
 
 | Plano | A | B | C |
 |:--- | :--- | :--- | :--- |
@@ -99,20 +101,23 @@ Q1b. (2,5) Apresente um escalonamento possível em que T1 e T2 são executadas c
 | Plano S2 (T2 -> T1) | 200 | 100 | 300 |
 | Plano Ks (Seriável) | 200 | 100 | 300 |
 
-### Anotações e observações
+
+### Anotações e observações: NÃO FAZ PARTE DA RESPOSTA
 
 #### OBS:
 
-- Houve concorrência nos exemplos acima, e garantimos consistência com o fato das transações serem seriáveis. Mas o que a concorrência trouxe de positivo? Nessa caso nada, mas 
+- Houve concorrência nos exemplos acima, e garantimos consistência com o fato das transações serem seriáveis. Mas o que a concorrência trouxe de positivo? Porque a ideia é trazer maior vazão ao sistema, certo? Nesse caso nada, mas em sistemas reais com muitas transações concorrentes, o escalonamento concorrente pode aumentar a utilização dos recursos do sistema, reduzindo o tempo de espera para o início da execução das transações, e melhorando a taxa de transferência geral do sistema.
 
 #### Concorrência vs Paralelismo:
 
+- Concorrência é a capacidade de um sistema de lidar com múltiplas operações ao mesmo tempo, enquanto paralelismo é a execução simultânea de várias operações. Em um ambiente de banco de dados, a concorrência permite que várias transações sejam processadas ao mesmo tempo, mas não necessariamente de forma paralela. Uma boa ideia de pensar em concorrência é lembrar de sistemas operacionais que gerenciam múltiplos processos em um único núcleo de CPU, alternando rapidamente entre eles para dar a impressão de simultaneidade.
 
 #### Escalonamento: Conceito
 
 Conjunto de operações de transações, no qual as opereações de uma mesma transação se mantém em ordem relativa, mas as oporações de transações distintas podem ser intercaladas a fim de alcançar a concorrência.
 
 Resultado Não Seriável e Seriável: 
+
 Seja A, e B duas transações com {a1,a,2,...,an} e {b1,b2,...,bn} operações dessas respectivamente, e x,y,z variáveis usadas nessas transações.
 
 Um plano X é dito seriável se e somente x, o valor de x,y,z após a aplicação das operações x1,x2...xn resultar em valores de x,y,z iguais a um dos resultados dos Planos: seq(A,B),seq(B,A).
@@ -204,6 +209,9 @@ INSERT INTO contas (id, saldo) VALUES
 > 4.  **Continuar Transação B:** Voltar para a Transação B e executar o comando `INSERT` que calcula a soma dos saldos.
 > 5.  **Commit da Transação B:** Finalizar e salvar as alterações da Transação B.
 
+> **OBS** Esse repo é para registro das atividades acadêmicas, então deixei aqui todas as anotações feitas ao longo dos dias, desde a execução do fluxo do pdf até o resultado final que consegui entender a diferença entre os níveis de isolamento.
+
+
 
 ### Nota de estudo.
 
@@ -228,44 +236,44 @@ Então a princípio fiz da seguinte maneira: Executei uma após a outra e fiz um
 
 TA -> TB -> TC -> STSeeping -> AutoCommit ->STAwake
 
-#### Transação A
-![alt text](image-14.png)
-#### Transação B
-![alt text](image-15.png)
+#### Transação A até o sleeping
+![alt text](imgs/image-14.png)
+#### Transação B completa
+![alt text](imgs/image-15.png)
 
-#### Select das Conexões existentes
+#### Select das Conexões existentes com o banco
 - Aqui aparecem duas, a do próprio select e outra da transação A por ainda estar no sleep. Nesse momento eu já executei a transação B, por isso não aparece no select.
 
-![alt text](image-16.png)
+![alt text](imgs/image-16.png)
 
-#### Tabela de Contas enquanto a transação A ainda não terminou
-- Quando a transação A terminou ela se manteve a mesma - já que deu erro - por isso deixei apenas 1 print.
+#### Tabela de Contas Transação B completa e Transação A dormindo
 
-![alt text](image-17.png)
+![alt text](imgs/image-17.png)
+
 #### AutoCommit
-- Quando o sleep acabou e o autocommit executou e esse foi o erro:
+- Quando o sleep acabou e o autocommit executou esse foi o erro:
 
-![alt text](image-18.png)
+![alt text](imgs/image-18.png)
 
 # `READ COMMITTED`, `REPEATABLE READ`, evidências por desencargo de consciência.
 
 #### Transação A
-![alt text](image-19.png)
+![alt text](imgs/image-19.png)
 
 #### Transação B
-![alt text](image-20.png)
+![alt text](imgs/image-20.png)
 
 
 - Usando `REPEATABLE READ`, quando rodei essa transação tbm rodei a TA com `REPEATABLE READ`
 
-![alt text](image-24.png)
+![alt text](imgs/image-24.png)
 
 #### Tabela contas após transação B e durante Sleeping da A
-![alt text](image-21.png)
+![alt text](imgs/image-21.png)
 #### Conexões Durante sleeping
-![alt text](image-22.png)
+![alt text](imgs/image-22.png)
 #### Tabela contas após a transação A acordar.
-![alt text](image-23.png)
+![alt text](imgs/image-23.png)
 
 
 
@@ -331,6 +339,7 @@ O estado final da tabela após a Transação A finalmente dar `COMMIT`.
 ```
 
 # Usando o DBeaver para conectar no SupaBase.
+- 04.11.2025
 
 Com o DBeaver eu consigo iniciar uma transação e commita-la manualmente. Veremos se tem alguma diferença.
 
@@ -338,97 +347,210 @@ Com o DBeaver eu consigo iniciar uma transação e commita-la manualmente. Verem
 
 ## TA até o sleeping
 
-![](image-25.png)
+![](imgs/image-25.png)
 
-![alt text](image-26.png)
+![alt text](imgs/image-26.png)
+### Aqui podemos ver que tem a minha conexão do DBeaver ativa.
+![alt text](imgs/image-27.png)
 
-![alt text](image-27.png)
+![alt text](imgs/image-28.png)
 
-![alt text](image-28.png)
-
-## TB com saldo id = 2
-![alt text](image-29.png)
+## TB completa até o commit.
+![alt text](imgs/image-29.png)
 
 ## Tabela contas: 
 - ainda com TA sleeping, e após TB. Ou seja, o resuldado - id = 3 - dirá qual o valor que TB viu do saldo de ID = 1, se a soma for 150 então significa que TB viu o dado desatualizado, se o valor da soma for 100 TB viu o saldo após o update de TA.
 
-![alt text](image-30.png)
+![alt text](imgs/image-30.png)
 
-Então TB viu o valor antes do commit.
+- Como o resultado acima mostra 150, então TB viu o valor antes do commit.
 
-## Commit de TB
+## Commit de TA
 
-![alt text](image-31.png)
+![alt text](imgs/image-31.png)
 
-## Sem transação em andamento, evidência
-![alt text](image-32.png)
+## Sem transação em andamento - só a do próprio select.
+![alt text](imgs/image-32.png)
 
 
-## Tabela Contas após o commit:
+## Tabela Contas após o commit de TA:
 
-![alt text](image-33.png)
+![alt text](imgs/image-33.png)
 
 # Usando `READ COMMITTED`:
 
 
-## TA
+## TA até o sleeping
 
-![alt text](image-34.png)
+![alt text](imgs/image-34.png)
 
-![alt text](image-35.png)
+![alt text](imgs/image-35.png)
 
-![alt text](image-36.png)
+![alt text](imgs/image-36.png)
 
-## TB
+## TB até o commit. 
 
-![alt text](image-37.png)
+![alt text](imgs/image-37.png)
 
-## Contas durante o sleeping
+## Contas durante o sleeping de TA e após commit de TB.
 
-![alt text](image-38.png)
+![alt text](imgs/image-38.png)
 
-## Commtit TA
-![alt text](image-39.png)
+## Commit TA
+![alt text](imgs/image-39.png)
 
 ## Contas após commit TA
 
-![alt text](image-40.png)
+![alt text](imgs/image-40.png)
 
-# Usando `SERIALIZABLE`
+# Usando `SERIALIZABLE` e Dbeaver
 
-TA
-![alt text](image-41.png)
+## TA até o Sleeping
+![alt text](imgs/image-41.png)
 
-![alt text](image-42.png)
+![alt text](imgs/image-42.png)
 
-![alt text](image-43.png)
+![alt text](imgs/image-43.png)
 
-TB
+## TB Completa até o commit.
 
-![alt text](image-44.png)
+![alt text](imgs/image-44.png)
 
-## Contas com TA dormindo e TB commitada
+## Contas com TA dormindo e TB commitada.
 
-![alt text](image-45.png)
+![alt text](imgs/image-45.png)
 
-## Erro no commit da ta
+## Erro no commit da TA
 
-![alt text](image-46.png)
+![alt text](imgs/image-46.png)
 
 
 **Q2b. (1,5)** Qual foi o nível de isolamento que apresentou erro? Explique o porquê desse erro.
 
-Foi o serializable, no commit da TA. O erro aconteceu porque o isolamento serializable simula um funcionamento em fila, e como os dados da transação A nesse caso já estão desatualizados com a versão atual o commit não será permitido no momento da comparação das versões.
+Foi o serializable, no commit da TA. O erro aconteceu porque o isolamento serializable simula um funcionamento em fila, e como os dados da transação A nesse caso já estão desatualizados com a versão atual o commit não será permitido no momento da comparação das versões, o snapshot usado para verificar a consistência dos dados não bate com o estado mais recente. 
 
 **Q2c. (3,0)** Indique uma das formas possíveis de contornar o erro que você identificou no item 2.b, modifique a transação (ou transações) e demonstre que funciona.
 
-Lendo um artigo sobre o tema (https://medium.com/@darora8/transaction-isolation-in-postgres-ec4d34a65462) encontrei que o postgress não tem suporte ao level de isolamento uncommited read que permitiria a leitura dos dados em o versionamento para cada transação, que resultaria no valor de ID 3 "correto", mas perderiamos a consistencia de dados para commits que tivessem rollback e assim permitindo a a leitura de dados fantasmas como cita o artigo.
-
 Uma forma simples de contornar a situação é refazer a transação.
 
-![alt text](image-47.png)
+![alt text](imgs/image-47.png)
 
-![alt text](image-48.png)
+![alt text](imgs/image-48.png)
 
-![alt text](image-49.png)
+![alt text](imgs/image-49.png)
 
+## READ COMMITTED com fluxo refatorado:
+
+## Transação A até o sleeping - (tirei o sleep para agilizar o processo)
+
+![alt text](image.png)
+
+### Transação B até o update do saldo com id = 2
+- Aqui a gente percebe que TB não vê a alteração feita por TA - que ainda não commitou, pois o saldo de id = 1 ainda é 100. 
+![alt text](image-1.png)
+
+### Commit de TA
+![alt text](image-2.png)
+
+### Continuando TB com o insert da soma dos saldos
+![alt text](image-3.png)
+
+### Tabela contas após o commit de TB
+
+![alt text](image-4.png)
+
+O que aconteceu: A transação A foi commitada antes do insert da transação B, então quando B fez o select para somar os saldos, ela já viu o saldo atualizado de A, evitando o conflito que gerou o erro no nível de isolamento SERIALIZABLE. 
+
+## REPEATABLE READ com fluxo refatorado:
+
+### Transação A até o sleeping - (tirei o sleep para agilizar o processo)
+
+![alt text](image-11.png)
+
+### Transação B até o update do saldo com id = 2
+
+![alt text](image-12.png)
+
+### Commit de TA
+
+![alt text](image-13.png)
+
+### Continuando TB com o insert da soma dos saldos
+
+![alt text](image-14.png)
+
+### Tabela contas após o commit de TB
+
+![alt text](image-15.png)
+
+O que aconteceu: A transação A foi commitada antes do insert da transação B MAS, diferente do READ COMMITTED, o REPEATABLE READ garante que dentro da transação B as leituras serão do mesmo snapshot do início, por isso o resultado de 150 mesmo depois do commit de TA.
+
+## SERIALIZABLE com fluxo refatorado:
+
+### Transação A até o sleeping - (tirei o sleep para agilizar o processo)
+
+![alt text](image-16.png)
+
+### Transação B até o update do saldo com id = 2
+
+![alt text](image-17.png)
+
+### Commit de TA
+
+![alt text](image-18.png)
+
+### Continuando TB com o insert da soma dos saldos
+
+- Aqui deu o erro similar ao primeiro teste que fiz, pois o commit de TA deixou os dados de TB desatualizados e o MVCC não permitiu o commit de um snapshot antigo.
+
+![alt text](image-19.png)
+
+### Tabela contas após o commit de TB - que deu errado.
+
+![alt text](image-20.png)
+
+O que aconteceu: A transação A foi commitada antes do insert da transação B, mas como o nível de isolamento SERIALIZABLE exige que as transações sejam completamente isoladas umas das outras o commit de TA invalidou o snapshot usado por TB resultando em um erro ao tentar continuar a transação B - mesma explicação de antes.
+
+Com isso foram responsdidas as questões a e b da questão 2.
+
+Para Q2c: 
+- 7.11.25
+
+Unica maneira acaba sendo refazer a transação B após o commit de A, ou seja, o fluxo que já foi testado e deu certo no READ COMMITTED e REPEATABLE READ.
+
+Uma outra forma seria usando o for update sem o level de isolation SERIALIZABLE para ambas as transacoes, assim a transacao B ficaria esperando
+
+## Transação A com for update
+
+![alt text](image-24.png)
+
+## Transação B com for update
+
+- A transação fica esperando a outra acontecer, pq o recurso está lockado com a TA.
+
+![alt text](image-25.png)
+
+## Commit transação A
+
+![alt text](image-26.png)
+
+## Contas logo após commit de TA
+
+![alt text](image-27.png)
+
+## Transação B após commit de TA 
+- Aqui eu não rodei nada, ele saiu da espera para essa mensagem de que o recurso teve o update.
+
+![alt text](image-28.png)
+
+- Commit de B 
+
+![alt text](image-29.png)
+
+## Contas após o commit de B
+
+![alt text](image-30.png)
+
+## Conclusão para Q2.c
+
+- Essa seria uma alternativa para não precisar fazer a retentativa da transação, que nesse caso ficaria aguardando o recurso ser liberado e tem um comportamento com resultado final equivalente a transação seriais.
