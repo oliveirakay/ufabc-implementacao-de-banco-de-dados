@@ -81,9 +81,7 @@ MATCH (a:Aluno {nome: 'Kayque'})-[r:FAZ]->(c:Curso {nome: 'IBD'})
 SET r.atributo_TA = 'valor_TA'
 RETURN r;
 ```
-/* NÃO RODE O COMMIT AINDA!
-Esta transação agora possui um "write lock" (bloqueio de escrita) na aresta [r]. 
-*/
+
 ### Transação TB:
 ```
 :BEGIN
@@ -93,10 +91,6 @@ MATCH (c:Curso {nome: 'IBD'})<-[r:FAZ]-(a:Aluno {nome: 'Kayque'})
 SET r.atributo_TB = 'valor_TB'
 RETURN r;
 ```
-/* Esta consulta ficará "travada" (bloqueada).
-Ela tentará obter um "write lock" na mesma aresta [r] que o Cliente 1 já bloqueou.
-O Neo4j irá pausar esta transação até que o Cliente 1 libere o lock (com COMMIT ou ROLLBACK).
-*/
 ### Transação TC:
 ```
 :BEGIN
@@ -106,11 +100,6 @@ MATCH (a:Aluno {nome: 'Kayque'})
 SET a.atributo_TC = 'valor_TC'
 RETURN a;
 ```
-/* Esta consulta deve executar IMEDIATAMENTE e NÃO deve travar.
-Isso demonstra a granularidade do Neo4j:
-O Cliente 1 bloqueou a *aresta*, mas não o *nó*.
-O Cliente 3 quer bloquear o *nó*, o que é permitido.
-*/
 
 ### Transação TD:
 ```
@@ -118,16 +107,6 @@ O Cliente 3 quer bloquear o *nó*, o que é permitido.
 MATCH ()-[r:FAZ {semestre: 2025}]-()
 RETURN r.atributo_TA;
 ```
-
-/* Enquanto o Cliente 1 (TA) NÃO der COMMIT:
-O resultado aqui será (null) ou "propriedade não existe".
-Isso demonstra o isolamento (READ COMMITTED):
-Você não pode ler dados de transações que ainda não foram confirmadas.
-
-AGORA, vá ao Cliente 1 e digite 'COMMIT;'.
-Depois, rode este comando de leitura (TD) novamente.
-O resultado agora será 'valor_TA'.
-*/
 
 ### Prints das execuções:
 - Status: Antes do COMMIT da TA
