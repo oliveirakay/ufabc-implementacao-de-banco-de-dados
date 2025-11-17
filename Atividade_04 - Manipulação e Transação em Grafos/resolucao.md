@@ -1,5 +1,9 @@
 # Resolução - Atividade 04 - Manipulação e Transação em Grafos
 
+# Atividade desenvolvida por: 
+- Kayque Moraes - 11202130076
+- Paulinho - 
+
 ## Conceitos/Definições:
 
 WAL - Write-Ahead Log é uma técnica utilizada em sistemas de gerenciamento de banco de dados para garantir a durabilidade e a consistência das transações. O WAL registra todas as operações de modificação de dados antes que essas operações sejam aplicadas ao banco de dados. Isso permite que, em caso de falha do sistema, as transações possam ser recuperadas a partir do log, garantindo que nenhuma operação seja perdida.
@@ -248,3 +252,124 @@ Explicitamente:
 q2a: Não acontece a deleção porque o neo4j usa ponteiro associadosdos aos nós e arestas, e a transação B está aguardando o commit ou rollback da transação A para prosseguir, pois estão olhando para o mesmo ponteiro (nó Bruno).
 
 q2b: Para resolver o problema, podemos usar o comando `DETACH DELETE`, que remove o nó e todas as suas arestas conectadas em uma única operação. Isso garante que não haja arestas pendentes que impeçam a exclusão do nó.
+
+
+## Q3a. (1,5) Como você garantiria que todos os nós e arestas do grafo MOVIE estão completos (com todos os atributos)? Que estratégia de manipulação você usaria para identificar nós e arestas incoerentes?
+
+- Para avaliar nós e relações tais quais suas propriedades estejam incompletas, deve ser feita uma filtragem utilizando WHERE buscando pelo valor null. Ademais, se quisermos adicionarmos um valor para esta propriedade, o faremos usando SET.
+
+- O processo ideal seria termos a modelagem e avaliarmos cada propriedade para cada nó e aresta quanto à ausência de propriedade. O que foi feito para este cenário foi a verificação para cada tipo de nó e relação. 
+- O caso em que foi encontrada propriedade incompleta foi para `born`, para o nó do tipo Person.
+
+![alt text](image-30.png)
+
+- Nesse sentido, podemos atualizar a propriedade unitariamente para cada pessoa, com seu respectivo valor.
+Exemplo (não foi executado):
+MATCH (p:Person {name: 'Paul Blythe'}) SET p.born = 1995 RETURN p.name, p.born
+
+
+
+## Q3b. (1,5) Suponha que você tem filmes ou pessoas duplicadas no grafo MOVIE. Como você faria a limpeza de dados sem perder conexões no grafo? Quais propriedades ou relações você precisa preservar? Escolha um filme e pessoa a sua escolha e aplique sua operação de limpeza.
+
+- Vamos criar nós duplicados. Temos o mesmo personagem e, para cada, temos duas arestas distintas. 
+
+![alt text](image-31.png)
+
+- O que fazemos é avaliar os dois nós de pessoas. Note que o ator principal possui a propriedade born adicionalmente a p2. O escolhemos como nó principal e, se houvessem outras propriedades no nó duplicado, deveríamos passá-las.
+
+![alt text](image-32.png)
+
+Na saída, vemos o filme e as roles atribuídas ao nosso nó principal. Após isso, excluímos o nó secundário juntamente com as suas dependências (relações) usando DETACH.
+
+Agora, vemos o ator principal nos dois filmes fictícios que criamos:
+
+![alt text](image-33.png)
+
+
+## Q3c. (1,0) Quais atores aparecem mais frequentemente em certos gêneros de filmes? Existe algum padrão que você percebe sobre a colaboração entre atores e gêneros? Atribua os gêneros (no mínimo 4) aos filmes a partir do seu título.
+
+- Baseado no titulo atribuimos um gênero para cada filme:
+
+![alt text](image-34.png)
+
+- Agora, para avaliar atores que apareceram mais frequentemente por gênero, fazemos o traversing em (Person)-[:ACTED_IN]->(Movie) e filtramos pelos filmes que classificamos. Depois, agrupamos por ator e gênero e contamos.
+
+![alt text](image-35.png)
+
+- Analisando a saída, nota-se que Hugo Weaving e Keanu Reeves são predominantes em filmes de ficção, enquanto Meg Ryan é predominante em Romance. Isso vale exclusivamente para nossa classificação.
+
+querys utilizadas para questão 3:
+
+```
+MATCH (p:Person)
+WHERE p.born IS NULL
+RETURN p.name, p.born
+
+CREATE (m1:Movie {title: 'Filme 1'})
+CREATE (m2:Movie {title: 'Filme 2'})
+
+
+CREATE (p1:Person {name: 'Ator Principal', born: 1980})
+CREATE (p2:Person {name: 'Ator Duplicado'})
+
+
+CREATE (p1)-[:ACTED_IN {roles:['Role 1']}]->(m1)
+CREATE (p2)-[:ACTED_IN {roles:['Role 2']}]->(m2)
+
+MATCH (p1:Person {name: 'Ator Principal'})
+MATCH (p2:Person {name: 'Ator Duplicado'})
+
+
+MATCH (p2)-[r2:ACTED_IN]->(m)
+
+
+WITH p1, p2, r2, m
+
+
+CREATE (p1)-[r_new:ACTED_IN]->(m)
+SET r_new.roles = r2.roles
+
+
+DETACH DELETE p2
+
+
+RETURN p1.name, m.title, r_new.roles
+
+MATCH (p:Person)-[r:ACTED_IN]->(m:Movie)
+WHERE m.title IN ['Filme 1', 'Filme 2']
+RETURN p.name, m.title, r.roles
+ORDER BY m.title
+
+MATCH (m:Movie)
+
+
+WITH m,
+CASE
+WHEN m.title CONTAINS 'Matrix' THEN 'Sci-Fi'
+WHEN m.title CONTAINS 'Vendetta' THEN 'Sci-Fi'
+WHEN m.title CONTAINS 'Cloud Atlas' THEN 'Sci-Fi'
+WHEN m.title CONTAINS 'Harry' THEN 'Romance'
+WHEN m.title CONTAINS 'Mail' THEN 'Romance'
+WHEN m.title CONTAINS 'Apollo 13' THEN 'Drama'
+WHEN m.title CONTAINS 'Green Mile' THEN 'Drama'
+WHEN m.title CONTAINS 'Top Gun' THEN 'Action'
+ELSE 'Other'
+END AS typeGenero
+
+
+SET m.genero = typeGenero
+
+
+RETURN m.title, m.genero
+
+MATCH (p:Person)-[:ACTED_IN]->(m:Movie)
+
+
+WHERE m.genero <> 'Other'
+
+
+RETURN p.name, m.genero, count(*) AS quantFilmes
+
+
+ORDER BY quantFilmes DESC
+```
