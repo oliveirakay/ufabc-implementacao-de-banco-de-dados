@@ -1,8 +1,8 @@
 # Resolução - Atividade 04 - Manipulação e Transação em Grafos
 
 # Atividade desenvolvida por: 
-- Kayque Moraes - 11202130076
-- Paulinho - 
+- Kayque de Moraes - 11202130076
+- Paulo Dias - 11202111146
 
 ## Conceitos/Definições:
 
