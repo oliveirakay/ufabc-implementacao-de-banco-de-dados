@@ -88,7 +88,7 @@ Sua organização é uma agência reguladora precisa armazenar informações sob
 
 #### 1. Modelo da relação reclamação:
 Usei o Supabase para modelar a relação de reclamação com as tabelas relacionadas de cliente, empresa e produto. 
-Ele gera o script SQL a partir do desenho.
+Ele gera o script SQL a partir do desenho, só clicar em "Database" e depois em "Copy as SQL".
 
 ![alt text](image-4.png)
 
@@ -128,30 +128,106 @@ CREATE TABLE public.reclamacao (
 
 ```
 
-#### 2. Operações INSERT, UPDATE e DELETE para gerenciar as reclamações:
-
 ```sql
--- Inserindo dados artificiais nas tabelas relacionadas
+-- Populando tabelas relacionadas
+INSERT INTO public.cliente (id_cliente, nome) VALUES
+(1, 'Cliente 1'), 
+(2, 'Cliente 2'), 
+(3, 'Cliente 3'), 
+(4, 'Cliente 4'), 
+(5, 'Cliente 5');
 
-INSERT INTO EMPRESA (ID_EMPRESA, NOME) VALUES (1, 'Empresa A');
-INSERT INTO CLIENTE (ID_CLIENTE, NOME) VALUES (1, 'Cliente A');
-INSERT INTO PRODUTO (ID_PRODUTO, NOME, PREÇO) VALUES (1, 'Produto A', '100');
--- Inserindo reclamações
-INSERT INTO RECLAMACAO (ID_RECLAMACAO, STATUS, DT_ULT_ALTERACAO, ID_EMPRESA, ID_CLIENTE, ID_PRODUTO, DT_CRIACAO) 
-VALUES 
-('R1', 'Registrada', NOW(), 1, 1, 1, NOW()),
-('R2', 'Em Análise', NOW(), 1, 1, 1, NOW()+INTERVAL '30 minutes'),
-('R3', 'Em Judice', NOW(), 1, 1, 1, NOW()+INTERVAL '1 hour'),
-('R4', 'Concluída', NOW(), 1, 1, 1, NOW()+INTERVAL '1 day'),
-('R5', 'Registrada', NOW(), 1, 1, 1, NOW());
+INSERT INTO public.empresa (id_empresa, nome) VALUES
+(1, 'Empresa 1'), 
+(2, 'Empresa 2'), 
+(3, 'Empresa 3'), 
+(4, 'Empresa 4'), 
+(5, 'Empresa 5');
+
+INSERT INTO public.produto (id_produto, nome, preco) VALUES
+(1, 'Produto 1', '10.00'), 
+(2, 'Produto 2', '20.00'), 
+(3, 'Produto 3', '30.00'), 
+(4, 'Produto 4', '40.00'), 
+(5, 'Produto 5', '50.00');
+```
+
+#### 2. Operações INSERT, UPDATE e DELETE para gerenciar as reclamações:
+Para gerenciar as reclamações achei conveniente criar procedures para cada operação de CRUD.
+
+- Procedure para atualizar reclamação:
+```sql
+CREATE OR REPLACE PROCEDURE atualizar_status_reclamacao(id_da_reclamacao text, novo_status text)
+AS $$
+BEGIN
+  UPDATE reclamacao r
+  SET status = novo_status,
+      dt_ult_alteracao = NOW()
+  WHERE r.id_reclamacao = id_da_reclamacao;
+END;
+$$ LANGUAGE plpgsql;
 
 ```
-#### 3. Armazenar apenas o estado atual de cada reclamação.
-Já está feito no passo anterior, onde cada reclamação tem apenas o estado atual armazenado na tabela RECLAMACAO.
+- Procedure para deletar reclamação:
+```sql
+CREATE OR replace procedure deletar_reclamacao(id_da_reclamacao text)
+as $$
+begin
+    delete from RECLAMACAO
+    where ID_RECLAMACAO = id_da_reclamacao;
+end;
+$$ language plpgsql;
+```
+- Procedure para inserir reclamação:
+```sql
+CREATE OR REPLACE PROCEDURE inserir_reclamacao(id_da_reclamacao text, status_inicial text, id_da_empresa integer, id_do_cliente integer, id_produto integer)
+AS $$
+BEGIN
+  INSERT INTO RECLAMACAO (ID_RECLAMACAO, STATUS, DT_ULT_ALTERACAO, ID_EMPRESA, ID_CLIENTE, ID_PRODUTO, DT_CRIACAO) 
+  VALUES (id_da_reclamacao, status_inicial, NOW(), id_da_empresa, id_do_cliente, id_produto, NOW());
+END;
+$$ LANGUAGE plpgsql;
+```
+##### Criando 5 reclamações em diferentes estados do ciclo de vida:
+- R1 
+```sql
+call inserir_reclamacao('R1', 'Registrada', 1, 1, 1);
 
-![alt text](image-5.png)
+call atualizar_status_reclamacao('R1', 'Em Análise');
+```
+- R2 
+```sql
+call inserir_reclamacao('R2', 'Registrada', 2, 2, 2);
+```
+- R3
+```sql
+call inserir_reclamacao('R3', 'Registrada', 3, 3, 3);
+call atualizar_status_reclamacao('R3', 'Em Análise');
+call atualizar_status_reclamacao('R3', 'Em Judice');
+```
+- R4
+```sql
+call inserir_reclamacao('R4', 'Registrada', 4, 4, 4);
+call atualizar_status_reclamacao('R4', 'Em Análise');
+call atualizar_status_reclamacao('R4', 'Em Judice');
+call atualizar_status_reclamacao('R4', 'Concluída');
+```
+- R5
+```sql
+call inserir_reclamacao('R5', 'Registrada', 5, 5, 5);
+call atualizar_status_reclamacao('R5', 'Em Análise');
+```
+
+Rodando em intervalos de segundos para diferenciar os timestamps:
+
+![alt text](image-6.png)
+
+#### 3. Armazenar apenas o estado atual de cada reclamação.
+
+Feito no passo anterior, onde cada reclamação tem apenas o estado atual armazenado na tabela RECLAMACAO.
 
 Respondendo as perguntas orientadoras:
+
 - Consulta para saber o status atual de uma reclamação:
 Basta fazer a consulta simples buscando o ID da reclamação desejada.
 
@@ -160,8 +236,67 @@ SELECT STATUS
 FROM RECLAMACAO 
 WHERE ID_RECLAMACAO = 'R1';
 ```
-- É possível responder "quanto tempo uma reclamação levou em cada etapa"?
-Não, com o modelo CRUD tradicional, não é possível rastrear o tempo que uma reclamação levou em cada etapa, pois apenas o estado atual é armazenado. 
 
-Eu poderia ter modelado pensando em uma coluna para cada etapa com timestamps.
+- É possível responder "quanto tempo uma reclamação levou em cada etapa"?
+
+Não, com o modelo CRUD tradicional, não é possível rastrear o tempo que uma reclamação levou em cada etapa, pois apenas o estado atual é armazenado, e da maneira que modelei a relação, caso tentasser por exemplo adicionar mais uma reclamação com o mesmo ID, iria gerar um erro de chave primária duplicada.
+
+É possivel apenas saber o delta do tempo da criação até o estado atual - que poderia ser calculado com a diferença entre DT_CRIACAO e DT_ULT_ALTERACAO, mas não o tempo em cada etapa individualmente.
+
+## PARTE 2 - EVENT SOURCING
+
+>1. Modele uma relação de eventos;
+
+>2. Crie eventos que representam mudança no ciclo de vida das reclamações. Faça isso para 5 reclamações no míninimo, mantendo-as em diferentes estados do ciclo de vida;
+
+>3. Reconstrua o estado de todas as reclamações aplicando a sequencia de eventos em ordem cronológica.
+
+> - Perguntas orientadoras:
+
+
+> Como ficaria a consulta para saber o status atual de uma reclamação?
+
+> É possível responder "quanto tempo uma reclamação levou em cada etapa"?
+
+
+para modelar a relação de eventos, criei uma tabela chamada EVENTO_RECLAMACAO que armazena os eventos de mudança de status das reclamações. Cada evento inclui o ID da reclamação, o novo status, e o timestamp da mudança.
+
+A modelegagem foi basead nos slides da aula sobre introdução ao Event Sourcing, basicamente adaptei o exemplo dado de pedidos para reclamações.
+
+```sql
+CREATE TABLE eventos_reclamacao (
+  id_evento    uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  aggregate_id text NOT NULL,           -- id_da_reclamacao (ex: 'R1')
+  aggregate_type text NOT NULL DEFAULT 'Reclamacao',
+  versao       int NOT NULL DEFAULT 1,
+  ts           timestamptz NOT NULL DEFAULT now(),
+  tipo_evento  text NOT NULL,           -- ex: 'ReclamacaoRegistrada', 'StatusAlterado'
+  payload      jsonb NOT NULL
+);
+```
+Aqui ao invés de 4 relações (tabelas) como no CRUD, temos apenas 1 tabela que armazena todos os eventos relacionados às reclamações, então cada mudança de status gera um novo registro nessa tabela.
+
+#### 2. Criando eventos que representam mudança no ciclo de vida das reclamações:
+
+```sql
+INSERT INTO eventos_reclamacao (aggregate_id, versao, ts, tipo_evento, payload) VALUES
+('R1', 1, now() - interval '10 minutes', 'ReclamacaoRegistrada', '{"novo_status":"Registrada","id_empresa":1,"id_cliente":1,"id_produto":1}'),
+('R1', 2, now() - interval '7 minutes',  'StatusAlterado',         '{"novo_status":"Em Análise"}'),
+('R1', 3, now() - interval '3 minutes',  'StatusAlterado',         '{"novo_status":"Em Judice"}'),
+('R1', 4, now() - interval '1 minute',   'StatusAlterado',         '{"novo_status":"Concluída"}');
+
+INSERT INTO eventos_reclamacao (aggregate_id, versao, ts, tipo_evento, payload) VALUES
+('R2',1, now() - interval '8 minutes', 'ReclamacaoRegistrada', '{"novo_status":"Registrada","id_empresa":2}'),
+('R3',1, now() - interval '6 minutes', 'ReclamacaoRegistrada', '{"novo_status":"Registrada","id_empresa":3}'),
+('R4',1, now() - interval '5 minutes', 'ReclamacaoRegistrada', '{"novo_status":"Registrada","id_empresa":4}'),
+('R5',1, now() - interval '4 minutes', 'ReclamacaoRegistrada', '{"novo_status":"Registrada","id_empresa":5}');
+
+
+```
+
+Como ficou a tabela de eventos após inserir os eventos acima:
+
+![alt text](image-7.png)
+
+#### 3. Reconstruindo o estado de todas as reclamações aplicando a sequência de eventos em ordem cronológica:
 
