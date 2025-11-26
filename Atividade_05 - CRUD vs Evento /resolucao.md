@@ -226,9 +226,11 @@ Rodando em intervalos de segundos para diferenciar os timestamps:
 
 Feito no passo anterior, onde cada reclamação tem apenas o estado atual armazenado na tabela RECLAMACAO.
 
-Respondendo as perguntas orientadoras:
+### Respondendo as perguntas orientadoras:
 
-- Consulta para saber o status atual de uma reclamação:
+> Como ficaria a consulta para saber o status atual de uma reclamação?
+
+Consulta para saber o status atual de uma reclamação:
 Basta fazer a consulta simples buscando o ID da reclamação desejada.
 
 ```sql
@@ -236,12 +238,14 @@ SELECT STATUS
 FROM RECLAMACAO 
 WHERE ID_RECLAMACAO = 'R1';
 ```
+![alt text](image-8.png)
 
-- É possível responder "quanto tempo uma reclamação levou em cada etapa"?
+> É possível responder "quanto tempo uma reclamação levou em cada etapa"?
 
-Não, com o modelo CRUD tradicional, não é possível rastrear o tempo que uma reclamação levou em cada etapa, pois apenas o estado atual é armazenado, e da maneira que modelei a relação, caso tentasser por exemplo adicionar mais uma reclamação com o mesmo ID, iria gerar um erro de chave primária duplicada.
 
-É possivel apenas saber o delta do tempo da criação até o estado atual - que poderia ser calculado com a diferença entre DT_CRIACAO e DT_ULT_ALTERACAO, mas não o tempo em cada etapa individualmente.
+Não, com o modelo CRUD tradicional não é possível rastrear o tempo que uma reclamação levou em cada etapa, pois apenas o estado atual é armazenado, toda vez que o status precisa ser atualizado o regristro é sobrescrito. 
+
+Mas possivel é possível saber delta do tempo da criação até o estado atual - que poderia ser calculado com a diferença entre DT_CRIACAO e DT_ULT_ALTERACAO, mas não o tempo em cada etapa individualmente.
 
 ## PARTE 2 - EVENT SOURCING
 
@@ -291,6 +295,12 @@ INSERT INTO eventos_reclamacao (aggregate_id, versao, ts, tipo_evento, payload) 
 ('R4',1, now() - interval '5 minutes', 'ReclamacaoRegistrada', '{"novo_status":"Registrada","id_empresa":4}'),
 ('R5',1, now() - interval '4 minutes', 'ReclamacaoRegistrada', '{"novo_status":"Registrada","id_empresa":5}');
 
+-- Atualizando status das reclamações para ter estados diferentes
+INSERT INTO eventos_reclamacao (aggregate_id, versao, ts, tipo_evento, payload) VALUES
+('R3',2, now() - interval '1 minute', 'StatusAlterado', '{"novo_status":"Em Análise"}'),
+('R4',2, now() - interval '45 seconds', 'StatusAlterado', '{"novo_status":"Em Análise"}'),
+('R4',3, now() - interval '20 seconds', 'StatusAlterado', '{"novo_status":"Em Judice"}'),
+('R5',2, now() - interval '15 seconds', 'StatusAlterado', '{"novo_status":"Em Análise"}');
 
 ```
 
@@ -300,3 +310,121 @@ Como ficou a tabela de eventos após inserir os eventos acima:
 
 #### 3. Reconstruindo o estado de todas as reclamações aplicando a sequência de eventos em ordem cronológica:
 
+@Dúvida: Aqui eu poderia criar uma view que mostra o estado atual de cada reclamação aplicando os eventos em ordem cronológica?
+
+Aqui podemos usar a função de janela LEAD para calcular o tempo que cada reclamação passsou em cada etapa do ciclo de vida.
+
+```sql
+SELECT
+  aggregate_id,
+  payload->>'novo_status' AS status,
+  ts AS started_at,
+  LEAD(ts) OVER (PARTITION BY aggregate_id ORDER BY ts) AS ended_at,
+  (LEAD(ts) OVER (PARTITION BY aggregate_id ORDER BY ts) - ts) AS duration
+FROM eventos_reclamacao
+WHERE aggregate_type = 'Reclamacao'
+ORDER BY aggregate_id, ts;
+```
+
+> **Informação — função LEAD**
+>
+> A função SQL `LEAD()` permite acessar o valor de uma linha subsequente (por exemplo, a próxima linha) em relação à linha atual dentro do mesmo conjunto de resultados, sem necessidade de auto-join. Isso é especialmente útil para cálculos entre eventos sequenciais, como computar a diferença de tempo entre timestamps.
+>
+> Exemplo de uso:
+>
+> ```sql
+> LEAD(ts) OVER (PARTITION BY aggregate_id ORDER BY ts) AS ended_at
+> ```
+>
+> No exemplo acima, para cada `aggregate_id` é selecionado o timestamp do próximo evento (`ended_at`) ordenado por `ts`. A função complementar `LAG()` lê a enésima linha anterior.
+
+
+#### respondendo as perguntas orientadoras:
+> Como ficaria a consulta para saber o status atual de uma reclamação?
+
+```sql
+WITH reclamacoes_ordenadas AS (
+  SELECT
+    e.aggregate_id,
+    e.payload->>'novo_status' AS status_atual,
+    e.ts,
+    ROW_NUMBER() OVER (PARTITION BY e.aggregate_id ORDER BY e.ts DESC) AS rn
+  FROM eventos_reclamacao e
+  WHERE e.aggregate_type = 'Reclamacao'
+)
+SELECT aggregate_id, status_atual, ts
+FROM reclamacoes_ordenadas
+WHERE rn = 1;
+```
+
+![alt text](image-9.png)
+
+> É possível responder "quanto tempo uma reclamação levou em cada etapa"?
+
+- Agora as coisas mudaram. Como o event sourcing vai armazenando coda etapa do ciclo de vida - e aqui vale observar que diferentemente das procedures que construí no CRUD, aqui eu apenas insiro eventos na tabela. Assim eu consigo rastrear o tempo que cada reclamação levou em cada etapa do ciclo de vida.
+
+```sql
+CREATE OR REPLACE VIEW duracao_etapas_reclamacao AS
+SELECT
+  aggregate_id,
+  payload->>'novo_status' AS status,
+  ts AS started_at,
+  LEAD(ts) OVER (PARTITION BY aggregate_id ORDER BY ts) AS ended_at,
+  (LEAD(ts) OVER (PARTITION BY aggregate_id ORDER BY ts) - ts) AS duration
+FROM eventos_reclamacao
+WHERE aggregate_type = 'Reclamacao'
+ORDER BY aggregate_id, ts;
+```
+
+- Aqui estão os resultados da view criada acima:
+> OBS: No print podemos obersver que algumas reclamações tem um tempo muito distinto da outras, isso porque durante a realização das atividades tive um espaçamento - eu dormi. 
+
+![alt text](image-11.png)
+
+### Parte 3 - Coparativo CRUD vs Event Sourcing
+
+> Faça um pequeno experimento e compare as duas abordagens quanto ao crescimento do volume de dados ao longo do tempo e desempenho em atualizações.
+
+#### O que já sabemos da anterior (3):
+
+INSERT VS INSERT + UPDATE:
+
+- Já vimos que o `UPDATE` no geral é uma operação mais custosa que o `INSERT` - atividade 3 - porque o banco precisa primeiro localizar o registro a ser atualizado, que involve leitura de indices, e depois modificar o registro existente, escalando isso para um grande volume de dados com alta concorrencia, o desempenho pode ser impactado devido a bloqueios e contenção de recursos. No caso do `INSERT`, o banco simplesmente adiciona um novo registro, o que é geralmente mais rápido e eficiente a depender da indexação e estrutura da tabela.
+
+#### desempenho em atualizações
+
+- No crud da nossa situação temos 4 estados, 4 transições possíveis sendo 1 `INSERT` inicial e 3 `UPDATE` para cada reclamação, então supondo uma distribuição uniforme de transições temos 1/4 de `INSERT` e 3/4 de `UPDATE` - ou seja, 75% das operações são teoricamente mais custosas vs 100% de `INSERT` no event sourcing. 
+
+- Considerando que o volume de dados cresça linearmente em ambos os casos, o event sourcing pode ter uma vantagem de desempenho em cenários com alta frequência de atualizações, pois evita a sobrecarga associada às operações de atualização devido ao overhead de leitura prévia do update - principalmente considerando uma indexação inadequada.
+
+##### crescimento do volume de dados ao longo do tempo
+
+- O CRUD armazena apenas o estado atual dos dados, resultando em um crescimento de dados mais controlado e previsível. Cada registro é atualizado no local mantendo a relação 1 - 1 com o número de reclamações abertas.
+
+- O Event Sourcing, por outro lado, armazena cada mudança de estado como um evento separado. Isso leva ao crescimento rápido do volume tendo. Tendo em vista nosso escopo fechado de estados possíveis a 4 estados por reclamação, a memória consumida pode a chegar a ser 4 vezes maior que o CRUD para o mesmo número de reclamações.
+
+Como experimento podemos usar o proprio codigo supracitado ja durante a tarefa.
+
+Eu tentei elaborar algo mais complexo para medir o tempo mas devido as limitacoes de ambiente e tempo, acabei optando por essa abordagem qualitativa. O supabase nao permite comandos de monitoramento mais avançados como wall clock time em trechos dentro de procedures, por exemplo.
+
+
+#### Parte 4 – Plot Twist
+Inicialmente, a agência só precisava guardar o estado final da reclamação. Contudo, após a promulgação de uma nova lei regulatória, são exigidos relatórios completos sobre as reclamações, contendo:
+
+(i) Histórico de todos os status de cada reclamação
+
+(ii) Tempo médio gasto em cada etapa do processo.
+
+Pergunta final:
+
+>Como essa mudança de requisito impacta a escolha entre CRUD e Event Sourcing?
+
+- O CRUD tradicional não é adequado para atender aos novos requisitos por armazenar apenas o estado (visao foto) atual das reclamações, tornando impossível rastrear o histórico completo de status e calcular o tempo médio gasto em cada etapa do processo, por isso o event sourcing cai como uma luva.
+
+>Qual abordagem traz menos esforço de adaptação? Por quê?
+
+- A abordagem de Event Sourcing traz menos esforço de adaptação para atender aos novos requisitos regulatórios. Isso ocorre porque o Event Sourcing já armazena todas as mudanças de estado como eventos imutáveis, facilitando a geração de relatórios completos sobre o histórico de cada reclamação e o cálculo do tempo médio gasto em cada etapa do processo
+
+>Considerando a arquitetura que você identificou como a de maior esforço de adaptação, quais modificações você precisaria realizar para adequá-la à exigência regulatória? Você pode combinar sua resposta com trechos de código (SQL) para ilustrar.
+
+- Seria necessário implementar um mecanismo para rastrear o histórico completo de status de cada reclamação. Isso poderia ser feito criando uma tabela adicional para armazenar os eventos de mudança de status OU criando novas colunas com status de alteracao, mas isso poderia tornar a modelagem teoricamente incorreta por armazenar mais coisas do que deveria em apenas uma relacao. Entao a abordagem de uma tabela a mais para armazenar as mudancas seria talvez a melhor abordagem
